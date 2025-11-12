@@ -1,31 +1,36 @@
 "use client";
-import { useEffect } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 
-export default function ProSuccess() {
-  const params = useSearchParams();
-  const router = useRouter();
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 
-  useEffect(() => {
-    const sid = params.get("session_id");
-    if (sid) {
-      (async () => {
-        try {
-          await fetch(`/api/stripe/activate?session_id=${sid}`, { cache: "no-store" });
-          router.replace("/?upgraded=1");
-        } catch {
-          router.replace("/?activate=error");
-        }
-      })();
-    } else {
-      router.replace("/?missing_session=1");
-    }
-  }, [params, router]);
+function ProContent() {
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get("session_id");
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-violet-600 via-indigo-500 to-sky-400 text-white">
-      <h1 className="text-3xl font-bold mb-3 animate-pulse">Activating Pro…</h1>
-      <p className="text-white/80">Please wait a moment.</p>
-    </main>
+    <div className="flex flex-col items-center justify-center min-h-screen text-center p-8">
+      <h1 className="text-3xl font-bold text-green-600 mb-4">✅ You’re now Pro!</h1>
+      {sessionId && (
+        <p className="text-gray-700 mb-2">Session ID: {sessionId}</p>
+      )}
+      <p className="text-gray-600">
+        Enjoy unlimited AI text styling and rewriting. ✨
+      </p>
+      <a
+        href="/"
+        className="mt-6 text-blue-500 hover:underline"
+      >
+        Back to Home
+      </a>
+    </div>
   );
 }
+
+export default function ProPage() {
+  return (
+    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
+      <ProContent />
+    </Suspense>
+  );
+}
+
