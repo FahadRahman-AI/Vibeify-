@@ -16,24 +16,20 @@ export default function Navbar() {
         px-6 py-4
       "
     >
-      {/* Logo */}
+      {/* Text-only Logo (SVG removed) */}
       <Link href="/" className="flex items-center gap-2">
-        <img src="/logo.svg" className="w-10" />
-        <span className="text-white font-bold text-xl tracking-wide drop-shadow">
+        <span className="text-white font-bold text-2xl tracking-wide drop-shadow">
           Vibeify
         </span>
       </Link>
 
-      {/* Button */}
+      {/* Right button */}
       {!isPro ? (
-        <Link
-          href="#"
+        <button
           onClick={async () => {
-            const res = await fetch("/api/stripe/checkout", {
-              method: "POST",
-            });
+            const res = await fetch("/api/stripe/checkout", { method: "POST" });
             const data = await res.json();
-            if (data?.url) window.location.href = data.url;
+            if (data.url) window.location.href = data.url;
           }}
           className="
             bg-green-500 hover:bg-green-400
@@ -44,9 +40,11 @@ export default function Navbar() {
           "
         >
           Go Pro
-        </Link>
+        </button>
       ) : (
-        <span className="text-green-300 font-semibold">⭐ Pro Member</span>
+        <span className="text-green-300 font-semibold drop-shadow">
+          ⭐ Pro Member
+        </span>
       )}
     </nav>
   );

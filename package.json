@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+     "dev-safe": "powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force\" && next dev -p 3000",
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start",

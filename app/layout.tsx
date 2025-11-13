@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "./components/Navbar"; // ← FIXED IMPORT
+import Navbar from "./components/Navbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,11 +26,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Navbar /> {/* NAVBAR ADDED */}
+        className={`
+          ${geistSans.variable} 
+          ${geistMono.variable} 
+          antialiased
 
-        <div className="pt-20">{children}</div>
+          /* FIX: Background stays gradient so navbar never hits white */
+          bg-gradient-to-br from-purple-700 via-pink-500 to-indigo-500
+        `}
+      >
+        {/* Navbar at top */}
+        <Navbar />
+
+        {/* Prevent navbar overlap */}
+        <div className="pt-20">
+          {children}
+        </div>
       </body>
     </html>
   );
