@@ -1,161 +1,176 @@
 "use client";
 
 import { useState } from "react";
+import { useProStatus } from "@/hooks/useProStatus";
 
 export default function Home() {
   const [text, setText] = useState("");
   const [tone, setTone] = useState("Professional");
-  const [output, setOutput] = useState("");
+  const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const isPro = useProStatus();
 
-  async function goPro() {
-    try {
-      const res = await fetch("/api/stripe/checkout", { method: "POST" });
-      const data = await res.json();
+  const premiumTones = [
+    "Savage",
+    "Romantic+",
+    "Poetic+",
+    "Ultra Professional",
+  ];
 
-      if (data.url) {
-        window.location.href = data.url; // redirect to Stripe Checkout page
-      } else {
-        alert("Unable to start checkout.");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Something went wrong.");
-    }
-  }
-
+  //////////////////////////////////////////
+  // 🔥 Handle Rewrite (with Pro gating)
+  //////////////////////////////////////////
   const handleRewrite = async () => {
-    if (!text.trim()) return;
+    if (!text.trim()) {
+      alert("Please enter some text first.");
+      return;
+    }
+
+    if (!isPro) {
+      const used = Number(localStorage.getItem("free_rewrites") || 0);
+      if (used >= 5) {
+        alert("You've reached your free daily limit! Upgrade to Pro for unlimited rewrites.");
+        return;
+      }
+      localStorage.setItem("free_rewrites", String(used + 1));
+    }
+
     setLoading(true);
-    setOutput("");
+    setResult("");
 
     try {
       const res = await fetch("/api/rewrite", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, tone }),
       });
+
       const data = await res.json();
-      setOutput(data.result);
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      setResult(data.result);
     } catch (err) {
       console.error(err);
-      setOutput("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+      alert("An error occurred. Please try again.");
     }
+
+    setLoading(false);
   };
 
-  const presetExamples = [
-    "Hey, can we reschedule our meeting?",
-    "Sorry I’m running late 😅",
-    "Let’s grab coffee sometime soon!",
-    "I’m thrilled about the new project!",
-  ];
+  //////////////////////////////////////////
+  // ⚡ Stripe Upgrade Function
+  //////////////////////////////////////////
+  async function goPro() {
+    try {
+      const res = await fetch("/api/stripe/checkout", { method: "POST" });
+      const data = await res.json();
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      alert("Unable to start checkout.");
+    } catch (error) {
+      console.error(error);
+      alert("Something went wrong.");
+    }
+  }
 
   return (
-    <main className="min-h-screen w-full bg-gradient-to-br from-violet-600 via-indigo-500 to-sky-400 flex flex-col items-center justify-center p-6 text-gray-900">
-      {/* HEADER */}
-      <div className="text-center mb-10">
-        <h1 className="text-6xl font-extrabold text-white drop-shadow-lg mb-2 tracking-tight">
-          Vibeify ✨
-        </h1>
-        <p className="text-indigo-100 text-lg max-w-xl mx-auto">
-          Instantly transform your words into any <span className="font-semibold text-white">vibe</span> —
-          professional, flirty, poetic, savage, and more.
-        </p>
-      </div>
+    <main className="min-h-screen flex items-center justify-center px-6 py-12">
+      <div className="max-w-3xl w-full bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_0_40px_rgba(255,255,255,0.1)] p-10">
 
-      {/* CARD */}
-      <div className="backdrop-blur-lg bg-white/10 border border-white/20 shadow-2xl rounded-2xl p-8 w-full max-w-2xl text-white">
-        <label className="block text-lg mb-2 font-semibold">Your Text</label>
+        {/* Logo */}
+        <div className="flex justify-center mb-4">
+          <img src="/logo.svg" className="w-14 opacity-90" />
+        </div>
+
+        {/* Title */}
+        <h1 className="text-center text-4xl font-bold mb-2 bg-gradient-to-r from-purple-300 to-blue-300 bg-clip-text text-transparent">
+          Vibeify AI
+        </h1>
+
+        <p className="text-center text-neutral-300 mb-6">
+          Transform your writing instantly with AI-powered tone styling.
+        </p>
+
+        {/* PRO / FREE STATUS */}
+        {isPro ? (
+          <p className="text-center text-green-400 font-semibold mb-6">
+            🔥 Pro Activated — Unlimited Rewrites + Premium Tones
+          </p>
+        ) : (
+          <p className="text-center text-yellow-300 mb-6">
+            Free Plan — 5 rewrites per day. Unlock Pro for unlimited access.
+          </p>
+        )}
+
+        {/* Input Box */}
         <textarea
-          className="w-full p-4 rounded-xl bg-white/20 border border-white/30 focus:outline-none focus:ring-4 focus:ring-sky-300 placeholder-white/70 text-white resize-none"
+          className="w-full bg-white/10 border border-white/20 rounded-2xl p-4 text-white placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-400 transition"
           rows={4}
-          placeholder="Type or paste your text here..."
+          placeholder="Write or paste your text here..."
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
 
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mt-4">
-          <select
-            className="p-3 rounded-lg bg-white/30 border border-white/40 text-gray-900 font-medium focus:outline-none focus:ring-4 focus:ring-sky-300"
-            value={tone}
-            onChange={(e) => setTone(e.target.value)}
-          >
-            {[
-              "Professional",
-              "Flirty",
-              "Funny",
-              "Empathetic",
-              "Poetic",
-              "Savage",
-              "Motivational",
-              "Mysterious",
-            ].map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+        {/* Tone Selector */}
+        <label className="mt-5 mb-1 block text-neutral-200 font-semibold">
+          Tone:
+        </label>
 
+        <select
+          value={tone}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (!isPro && premiumTones.includes(val)) {
+              alert("This tone requires Pro. Upgrade to unlock!");
+              return;
+            }
+            setTone(val);
+          }}
+          className="w-full bg-white/10 border border-white/20 rounded-2xl p-3 text-white"
+        >
+          <option value="Professional">Professional</option>
+          <option value="Friendly">Friendly</option>
+
+          {/* Premium (locked for free users) */}
+          <option disabled={!isPro} value="Savage">🔒 Savage (Pro)</option>
+          <option disabled={!isPro} value="Romantic+">🔒 Romantic+ (Pro)</option>
+          <option disabled={!isPro} value="Poetic+">🔒 Poetic+ (Pro)</option>
+          <option disabled={!isPro} value="Ultra Professional">🔒 Ultra Professional (Pro)</option>
+        </select>
+
+        {/* Buttons */}
+        <button
+          onClick={handleRewrite}
+          disabled={loading}
+          className="w-full mt-5 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 transition-all font-semibold shadow-lg hover:shadow-purple-500/40"
+        >
+          {loading ? "Rewriting..." : "Rewrite Text"}
+        </button>
+
+        {!isPro && (
           <button
-            onClick={handleRewrite}
-            disabled={loading}
-            className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-sky-400 to-violet-500 hover:from-sky-500 hover:to-violet-600 text-white font-semibold rounded-lg transition-all duration-300 disabled:opacity-60 shadow-lg"
+            onClick={goPro}
+            className="w-full mt-3 py-3 rounded-xl bg-green-600 hover:bg-green-500 active:scale-95 transition-all font-semibold shadow-lg hover:shadow-green-500/40"
           >
-            {loading ? "Vibing..." : "✨ Rewrite"}
+            Upgrade to Pro — $5/month
           </button>
+        )}
 
-          <button
-  onClick={goPro}
-  className="mt-6 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 hover:from-sky-500 hover:to-violet-600 text-white font-semibold transition-all"
->
-  Upgrade to Pro — $5/month
-</button>
-
-        </div>
-
-        {/* OUTPUT */}
-        {output && (
-          <div className="mt-6 bg-white/20 border border-white/30 rounded-xl p-5">
-            <p className="text-sm text-indigo-200 mb-2 font-semibold">
-              Your Rewritten Text:
-            </p>
-            <p className="text-white whitespace-pre-line leading-relaxed">{output}</p>
-            <button
-              className="mt-3 text-sm text-sky-200 underline hover:text-sky-100"
-              onClick={() => navigator.clipboard.writeText(output)}
-            >
-              Copy to clipboard
-            </button>
+        {/* Output Box */}
+        {result && (
+          <div className="mt-8 bg-white/10 border border-white/20 rounded-2xl p-5 text-white whitespace-pre-wrap shadow-inner">
+            <h2 className="text-lg font-semibold mb-2 text-purple-300">
+              ✨ Rewritten Text:
+            </h2>
+            {result}
           </div>
         )}
       </div>
-
-      {/* EXAMPLES */}
-      <div className="mt-10 max-w-3xl text-center">
-        <p className="text-white/80 font-medium mb-3">Try an example:</p>
-        <div className="flex flex-wrap justify-center gap-2">
-          {presetExamples.map((ex) => (
-            <button
-              key={ex}
-              onClick={() => setText(ex)}
-              className="px-4 py-2 bg-white/20 border border-white/30 rounded-full text-white text-sm hover:bg-white/30 transition-all"
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* FOOTER */}
-      <footer className="mt-14 text-white/60 text-sm text-center">
-        <p>
-          Made with 💜 by <span className="font-semibold text-white">Vibeify</span> — where
-          every message gets the perfect tone.
-        </p>
-      </footer>
     </main>
   );
 }
