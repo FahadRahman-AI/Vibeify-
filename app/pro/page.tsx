@@ -1,36 +1,45 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
-function ProContent() {
-  const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id");
-
+export default function ProSuccess() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-center p-8">
-      <h1 className="text-3xl font-bold text-green-600 mb-4">✅ You’re now Pro!</h1>
-      {sessionId && (
-        <p className="text-gray-700 mb-2">Session ID: {sessionId}</p>
-      )}
-      <p className="text-gray-600">
-        Enjoy unlimited AI text styling and rewriting. ✨
-      </p>
-      <a
-        href="/"
-        className="mt-6 text-blue-500 hover:underline"
-      >
-        Back to Home
-      </a>
-    </div>
+    <main className="min-h-screen bg-gradient-to-br from-purple-700 via-pink-500 to-indigo-500 flex items-center justify-center px-6 py-20">
+      
+      <div className="
+        max-w-2xl w-full
+        bg-white/10 backdrop-blur-xl
+        border border-white/20
+        rounded-3xl shadow-[0_0_50px_rgba(255,255,255,0.25)]
+        p-10 text-center
+      ">
+
+        <h1 className="text-4xl font-extrabold bg-gradient-to-r from-white to-purple-200 bg-clip-text text-transparent mb-4">
+          🎉 You're Now Pro!
+        </h1>
+
+        <p className="text-white/90 text-lg mb-1">
+          Unlimited rewrites. Premium tones unlocked. No limits. 🔥
+        </p>
+
+        <p className="text-white/70 text-sm mb-10">
+          Enjoy the full power of Vibeify AI — instantly.
+        </p>
+
+        <Link 
+          href="/"
+          className="
+            inline-block mt-4 px-8 py-3
+            bg-green-500 hover:bg-green-400 
+            text-white font-semibold 
+            rounded-xl transition-all active:scale-95
+            shadow-[0_0_20px_rgba(34,197,94,0.6)]
+          "
+        >
+          Back to Home
+        </Link>
+
+      </div>
+    </main>
   );
 }
-
-export default function ProPage() {
-  return (
-    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
-      <ProContent />
-    </Suspense>
-  );
-}
-

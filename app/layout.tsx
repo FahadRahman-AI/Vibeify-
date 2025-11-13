@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { AnimatedBackground } from "./AnimatedBackground";
+import Navbar from "./components/Navbar"; // ← FIXED IMPORT
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vibeify — AI Text Styler",
-  description: "Rewrite any text instantly with an AI-powered style engine.",
+  title: "Vibeify AI",
+  description: "Rewrite your text in any tone with AI.",
 };
 
 export default function RootLayout({
@@ -26,10 +26,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased relative min-h-screen`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AnimatedBackground />
-        {children}
+        <Navbar /> {/* NAVBAR ADDED */}
+
+        <div className="pt-20">{children}</div>
       </body>
     </html>
   );
