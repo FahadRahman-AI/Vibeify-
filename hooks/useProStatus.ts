@@ -1,20 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
-export function useProStatus() {
+export function useProStatus(userId: string | null) {
   const [isPro, setIsPro] = useState(false);
 
   useEffect(() => {
-    // Look for the cookie set during activation page redirect
-    const value = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("vibeify_pro="));
+    if (!userId) return;
 
-    if (value && value.includes("1")) {
-      setIsPro(true);
+    async function load() {
+      const { data } = await supabase
+        .from("stripe_users")
+        .select("stripe_customer_id")
+        .eq("id", userId)
+        .single();
+
+      setIsPro(!!data);
     }
-  }, []);
+
+    load();
+  }, [userId]);
 
   return isPro;
 }

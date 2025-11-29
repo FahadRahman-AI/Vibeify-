@@ -1,26 +1,54 @@
-import OpenAI from "openai";
 import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
 export async function POST(req: Request) {
   try {
-    const { text, tone } = await req.json();
+    const { text, tone, deviceId } = await req.json();
 
-    const prompt = `Rewrite the following text in a ${tone} tone:\n\n"${text}"`;
+    if (!text) {
+      return NextResponse.json({ error: "Missing text" }, { status: 400 });
+    }
 
-    const completion = await openai.chat.completions.create({
+    // Check if the user is PRO
+    const { data: proRow } = await supabase
+      .from("stripe_users")
+      .select("*")
+      .eq("id", deviceId)
+      .single();
+
+    const isPro = !!proRow;
+
+    // Block premium tones if not Pro
+    const premiumTones = ["Poetic (Pro)", "Ultra Professional (Pro)"];
+    if (!isPro && premiumTones.includes(tone)) {
+      return NextResponse.json(
+        { error: "This tone requires a Pro subscription." },
+        { status: 403 }
+      );
+    }
+
+    // Run rewrite
+    const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        {
+          role: "system",
+          content: `Rewrite the text in a ${tone} tone.`,
+        },
+        { role: "user", content: text },
+      ],
     });
 
-    const result = completion.choices[0].message?.content ?? "No result.";
+    const output = completion.choices[0].message.content;
 
-    return NextResponse.json({ result });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ result: "Error processing request." }, { status: 500 });
+    return NextResponse.json({ output });
+  } catch (err: any) {
+    console.error(err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

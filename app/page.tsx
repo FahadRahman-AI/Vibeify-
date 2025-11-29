@@ -1,207 +1,270 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/hooks/useUser";
 import { useProStatus } from "@/hooks/useProStatus";
 
-// 🔥 Generate a unique and persistent device ID
-function getDeviceId() {
-  let id = localStorage.getItem("device_id");
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem("device_id", id);
-  }
-  return id;
-}
-
 export default function Home() {
+  const user = useUser();
+  const isPro = useProStatus(user?.id || null);
+
   const [text, setText] = useState("");
   const [tone, setTone] = useState("Professional");
-  const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [deviceId, setDeviceId] = useState("");
-  const isPro = useProStatus();
 
-  useEffect(() => {
-    setDeviceId(getDeviceId());
-  }, []);
+  // DAILY LIMIT
+  const FREE_LIMIT = 5;
+  const [freeCount, setFreeCount] = useState(0);
 
-  // Allowed tones logic
-  const premiumTones = ["Poetic+", "Ultra Professional"];
-  const allTones = [
+  // TONES
+  const tones = [
     "Professional",
     "Friendly",
+    "Confident",
+    "Funny",
     "Mysterious",
-    "Savage",
-    "Romantic+",
-    "Poetic+",
-    "Ultra Professional",
+    "Poetic (Pro)",
+    "Ultra Professional (Pro)",
   ];
 
-  // Suggested example snippets
+  // SUGGESTION BUTTONS
   const suggestions = [
-    "Hey, can we reschedule our meeting?",
+    "Hey, can we reschedule our meeting? 😊",
     "Sorry I'm running late 😅",
     "Let's grab coffee sometime soon!",
     "I'm thrilled about the new project!",
   ];
 
-  async function handleRewrite() {
-    if (!text.trim()) {
-      alert("Please enter some text first.");
-      return;
+  // On mount → generate device ID + load usage counter
+  useEffect(() => {
+    // 1. Device ID
+    let id = localStorage.getItem("device_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("device_id", id);
     }
+    setDeviceId(id);
+
+    // 2. DAILY USAGE COUNTER
+    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const storedDate = localStorage.getItem("free_rewrites_date");
+    const storedCount = localStorage.getItem("free_rewrites_count");
+
+    if (storedDate === today) {
+      setFreeCount(Number(storedCount || 0));
+    } else {
+      // reset counter
+      localStorage.setItem("free_rewrites_date", today);
+      localStorage.setItem("free_rewrites_count", "0");
+      setFreeCount(0);
+    }
+  }, []);
+
+  // 🆕 LINK USER ACCOUNT <-> DEVICE ID  
+  useEffect(() => {
+    if (user?.id && deviceId) {
+      fetch("/api/auth/link", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: user.id,
+          deviceId,
+        }),
+      });
+    }
+  }, [user?.id, deviceId]);
+
+  // ---------- REWRITE FUNCTION ----------
+  async function rewriteText() {
+    if (!text.trim()) return;
 
     if (!isPro) {
-      const count = Number(localStorage.getItem("free_rewrites") || "0");
-      if (count >= 5) {
-        alert("Your daily free limit has been reached. Upgrade to Pro for unlimited rewrites.");
+      if (freeCount >= FREE_LIMIT) {
+        alert("You've used all 5 free rewrites today. Upgrade to Pro for unlimited access.");
         return;
       }
-      localStorage.setItem("free_rewrites", String(count + 1));
     }
 
     setLoading(true);
-    setResult("");
 
     try {
       const res = await fetch("/api/rewrite", {
         method: "POST",
-        body: JSON.stringify({ text, tone }),
+        body: JSON.stringify({ text, tone, deviceId }),
       });
 
       const data = await res.json();
-      if (data.error) alert(data.error);
-      else setResult(data.result);
-    } catch (err) {
-      console.error(err);
+
+      if (data.error) {
+        alert(data.error);
+      }
+
+      if (data.output) {
+        setText(data.output);
+
+        // increment usage for free users
+        if (!isPro) {
+          const newCount = freeCount + 1;
+          setFreeCount(newCount);
+
+          const today = new Date().toISOString().slice(0, 10);
+          localStorage.setItem("free_rewrites_date", today);
+          localStorage.setItem("free_rewrites_count", String(newCount));
+        }
+      }
+    } catch (e) {
       alert("Something went wrong.");
+      console.error(e);
     }
 
     setLoading(false);
   }
 
-  // Stripe checkout
-  async function goPro() {
+  // ---------- CHECKOUT ----------
+  async function startCheckout() {
     try {
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await fetch("/checkout", {
         method: "POST",
         body: JSON.stringify({ deviceId }),
       });
+
       const data = await res.json();
-      if (data?.url) window.location.href = data.url;
-      else alert("Unable to start checkout.");
-    } catch (err) {
-      alert("Checkout failed.");
-      console.error(err);
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Unable to start checkout.");
+      }
+    } catch (e) {
+      alert("Error starting checkout.");
     }
   }
 
-  return (
-    <main
-      className="min-h-screen flex flex-col items-center px-6 py-10"
-      style={{
-        background:
-          "linear-gradient(135deg, #ff4f9a, #d345ff 30%, #7a5bff 60%, #4b3bff 90%)",
-      }}
-    >
-      {/* Main container */}
-      <div className="w-full max-w-4xl bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl shadow-[0_0_40px_rgba(255,255,255,0.1)] p-10 mt-10">
+  // ---------- LOGOUT ----------
+  function logout() {
+    supabase.auth.signOut();
+    window.location.href = "/";
+  }
 
-        {/* Title */}
-        <h1 className="text-center text-5xl font-extrabold text-white drop-shadow-md mb-4">
+  return (
+    <main className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-pink-500 via-purple-500 to-blue-600 text-white px-4 py-10">
+      <div className="w-full max-w-2xl p-10 rounded-3xl bg-white/10 backdrop-blur-xl shadow-2xl border border-white/10">
+
+        {/* NAVBAR */}
+        <div className="flex justify-end mb-4 gap-4 items-center">
+
+          {!user && (
+            <>
+              <a href="/account" className="text-white/80 hover:text-white underline cursor-pointer">
+                My Account
+              </a>
+              <a href="/signin" className="text-white/80 hover:text-white underline cursor-pointer">
+                Sign In
+              </a>
+            </>
+          )}
+
+          {user && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-white/90">{user.email}</span>
+
+              {isPro ? (
+                <span className="px-3 py-1 bg-yellow-400 text-black rounded-full text-xs font-bold">
+                  PRO
+                </span>
+              ) : (
+                <span className="px-3 py-1 bg-white/20 text-white rounded-full text-xs font-bold">
+                  FREE
+                </span>
+              )}
+
+              <button
+                onClick={logout}
+                className="text-white/70 underline hover:text-white cursor-pointer text-sm"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* TITLE */}
+        <h1 className="text-5xl font-extrabold text-white flex items-center gap-3 justify-center mb-3">
+          <span className="text-yellow-300 text-4xl">✨</span>
           Vibeify AI
         </h1>
 
-        <p className="text-center text-white/90 mb-6">
+        <p className="text-center text-lg text-white/80 mb-1">
           Instantly transform your writing with unique AI-powered tones.
         </p>
 
-        {/* Plan status */}
-        <p className="text-center text-white/70 mb-8">
-          Free Plan — 5 rewrites/day. Unlock Pro for unlimited access.
-        </p>
+        {/* DAILY FREE COUNTER */}
+        {!isPro ? (
+          <p className="text-center text-sm text-white/80 mb-6">
+            Today’s free rewrites:{" "}
+            <span className="font-semibold">
+              {freeCount} / {FREE_LIMIT}
+            </span>
+          </p>
+        ) : (
+          <p className="text-center text-sm text-green-200 mb-6">
+            Pro Plan — Unlimited rewrites.
+          </p>
+        )}
 
-        {/* Textbox */}
+        {/* TEXTAREA */}
         <textarea
-          placeholder="Type something here..."
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="w-full h-40 bg-white/10 border border-white/30 rounded-xl p-4 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-pink-300"
+          placeholder="Type something here..."
+          className="w-full h-40 p-4 rounded-xl bg-white/10 text-white border border-white/20 placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-pink-300"
         />
 
-        {/* Tone dropdown */}
-        <label className="text-white/80 font-semibold mt-6 mb-2 block">
-          Tone:
-        </label>
+        {/* TONE SELECT */}
+        <div className="mt-6">
+          <label className="text-white/80">Tone:</label>
 
-        <select
-          value={tone}
-          onChange={(e) => {
-            const t = e.target.value;
-            if (!isPro && premiumTones.includes(t)) {
-              alert("This tone requires Pro.");
-              return;
-            }
-            setTone(t);
-          }}
-          className="w-full bg-white/10 border border-white/30 text-white rounded-xl p-3 focus:outline-none backdrop-blur-xl"
-          style={{
-            colorScheme: "dark",
-          }}
-        >
-          {allTones.map((t) => (
-            <option
-              key={t}
-              value={t}
-              style={{ background: "#8a2be2", color: "white" }} // fixes white dropdown issue
-              disabled={!isPro && premiumTones.includes(t)}
-            >
-              {premiumTones.includes(t) ? `🔒 ${t}` : t}
-            </option>
-          ))}
-        </select>
+          <select
+            value={tone}
+            onChange={(e) => setTone(e.target.value)}
+            className="mt-2 w-full p-3 rounded-xl bg-white/10 text-white border border-white/20 focus:ring-2 focus:ring-pink-300 cursor-pointer"
+          >
+            {tones.map((t) => (
+              <option key={t} value={t} className="bg-purple-600 text-white">
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        {/* Rewrite Button — with animation restored */}
+        {/* REWRITE BUTTON */}
         <button
-          onClick={handleRewrite}
+          onClick={rewriteText}
           disabled={loading}
-          className="w-full mt-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-pink-600 to-red-600 hover:from-red-600 hover:to-pink-600 active:scale-95 transition-all shadow-lg hover:shadow-pink-500/40 animate-pulse"
+          className="w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-pink-600 to-purple-700 text-white font-semibold shadow-lg hover:opacity-90 transition active:scale-95 cursor-pointer"
         >
           {loading ? "Rewriting..." : "Rewrite Text"}
         </button>
 
-        {/* Upgrade Button — gold shine on hover */}
+        {/* UPGRADE TO PRO */}
         {!isPro && (
           <button
-            onClick={goPro}
-            className="w-full mt-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-purple-600 to-violet-700 relative overflow-hidden group shadow-lg hover:shadow-yellow-400/40"
+            onClick={startCheckout}
+            className="w-full mt-4 py-3 rounded-xl bg-gradient-to-r from-purple-700 to-purple-900 text-white font-semibold shadow-xl relative overflow-hidden hover:text-yellow-200 transition cursor-pointer"
           >
             <span className="relative z-10">Upgrade to Pro — $5/month</span>
-
-            {/* Gold Shine Effect */}
-            <div
-              className="absolute inset-0 bg-gradient-to-r from-yellow-400/0 via-yellow-300/40 to-yellow-400/0 
-              opacity-0 group-hover:opacity-100 transition-opacity duration-500 
-              group-hover:animate-shine pointer-events-none"
-            />
+            <span className="absolute inset-0 pointer-events-none shine-effect"></span>
           </button>
         )}
 
-        {/* Output */}
-        {result && (
-          <div className="mt-6 bg-white/10 p-4 rounded-xl text-white border border-white/20 whitespace-pre-wrap">
-            <h2 className="font-semibold mb-2 text-pink-200">✨ Rewritten Text:</h2>
-            {result}
-          </div>
-        )}
-
-        {/* Suggestions */}
-        <div className="flex gap-3 flex-wrap justify-center mt-8">
+        {/* SUGGESTIONS */}
+        <div className="mt-6 flex flex-wrap gap-3 justify-center">
           {suggestions.map((s) => (
             <button
               key={s}
-              className="px-4 py-2 bg-white/10 text-white rounded-full border border-white/20 hover:bg-white/20 transition"
               onClick={() => setText(s)}
+              className="px-4 py-2 bg-white/10 text-white rounded-xl border border-white/20 hover:bg-white/20 transition"
             >
               {s}
             </button>
@@ -209,14 +272,28 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Shine animation keyframes */}
-      <style>{`
-        @keyframes shine {
-          0% { transform: translateX(-150%); }
-          100% { transform: translateX(150%); }
+      {/* GOLD SHINE EFFECT */}
+      <style jsx>{`
+        @keyframes goldShine {
+          0% {
+            transform: translateX(-150%);
+          }
+          100% {
+            transform: translateX(150%);
+          }
         }
-        .animate-shine {
-          animation: shine 1.5s linear infinite;
+        .shine-effect {
+          background: linear-gradient(
+            120deg,
+            transparent 0%,
+            rgba(255, 215, 0, 0.7) 50%,
+            transparent 100%
+          );
+          transform: skewX(-20deg);
+          animation: none;
+        }
+        button:hover .shine-effect {
+          animation: goldShine 1s ease-in-out;
         }
       `}</style>
     </main>

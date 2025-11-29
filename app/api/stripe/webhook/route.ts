@@ -1,94 +1,71 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-06-20",
 } as any);
 
 export async function POST(req: Request) {
+  const body = await req.text();
   const signature = req.headers.get("stripe-signature");
 
-  if (!signature) {
-    return new NextResponse("Missing Stripe signature", { status: 400 });
-  }
+  if (!signature)
+    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
 
-  const rawBody = await req.text();
   let event: Stripe.Event;
 
   try {
     event = stripe.webhooks.constructEvent(
-      rawBody,
+      body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
   } catch (err: any) {
-    console.error("❌ Webhook signature error:", err.message);
-    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+    console.error("Webhook Signature Error:", err.message);
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
 
   try {
     switch (event.type) {
-      /* 🔥 User successfully checked out */
-      case "checkout.session.completed": {
-        const session = event.data.object as any;
-        const deviceId = session.metadata?.deviceId;
-
-        if (deviceId) {
-          await supabaseAdmin
-            .from("users")
-            .update({ is_pro: true })
-            .eq("device_id", deviceId);
-
-          console.log("🔥 User upgraded to Pro:", deviceId);
-        }
-        break;
-      }
-
-      /* 🔃 Subscription created/updated */
       case "customer.subscription.created":
       case "customer.subscription.updated": {
-        const subscription = event.data.object as any;
+        const subscription = event.data.object as Stripe.Subscription;
+
+        // Find Stripe customer
+        const customerId = subscription.customer as string;
+
+        // Retrieve metadata (we attached deviceId earlier)
         const deviceId = subscription.metadata?.deviceId;
 
-        if (deviceId) {
-          const active =
-            subscription.status === "active" ||
-            subscription.status === "trialing";
+        if (!deviceId) break;
 
-          await supabaseAdmin
-            .from("users")
-            .update({ is_pro: active })
-            .eq("device_id", deviceId);
+        // Insert or update Supabase record
+        await supabase.from("stripe_users").upsert({
+          id: deviceId,
+          stripe_customer_id: customerId,
+        });
 
-          console.log("✨ Subscription status updated:", deviceId, active);
-        }
         break;
       }
 
-      /* ❌ Subscription canceled */
       case "customer.subscription.deleted": {
-        const subscription = event.data.object as any;
-        const deviceId = subscription.metadata?.deviceId;
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
 
-        if (deviceId) {
-          await supabaseAdmin
-            .from("users")
-            .update({ is_pro: false })
-            .eq("device_id", deviceId);
+        // Remove Pro subscription
+        await supabase
+          .from("stripe_users")
+          .delete()
+          .eq("stripe_customer_id", customerId);
 
-          console.log("⚠️ Subscription canceled:", deviceId);
-        }
         break;
       }
-
-      default:
-        console.log(`Unhandled event type: ${event.type}`);
     }
-  } catch (err) {
-    console.error("❌ Error handling webhook:", err);
-    return new NextResponse("Webhook handler error", { status: 400 });
-  }
 
-  return new NextResponse("Webhook received", { status: 200 });
+    return NextResponse.json({ received: true });
+  } catch (err: any) {
+    console.error("Webhook Error:", err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
