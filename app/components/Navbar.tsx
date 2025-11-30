@@ -1,50 +1,54 @@
 "use client";
 
 import Link from "next/link";
+import { useUser } from "@/hooks/useUser";
 import { useProStatus } from "@/hooks/useProStatus";
+import { supabase } from "@/lib/supabase";
 
 export default function Navbar() {
-  const isPro = useProStatus();
+  const user = useUser();
+  const isPro = useProStatus(user?.id || null); // ✅ FIXED
+
+  async function logout() {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }
 
   return (
-    <nav
-      className="
-        w-full fixed top-0 left-0 z-50
-        bg-white/10 backdrop-blur-xl
-        border-b border-white/20
-        flex items-center justify-between
-        px-6 py-4
-      "
-    >
-      {/* Text-only Logo (SVG removed) */}
-      <Link href="/" className="flex items-center gap-2">
-        <span className="text-white font-bold text-2xl tracking-wide drop-shadow">
-          Vibeify
-        </span>
-      </Link>
+    <nav className="w-full flex justify-end gap-4 items-center p-4 text-white">
+      {!user && (
+        <>
+          <Link href="/account" className="text-white/80 hover:text-white underline">
+            My Account
+          </Link>
 
-      {/* Right button */}
-      {!isPro ? (
-        <button
-          onClick={async () => {
-            const res = await fetch("/api/stripe/checkout", { method: "POST" });
-            const data = await res.json();
-            if (data.url) window.location.href = data.url;
-          }}
-          className="
-            bg-green-500 hover:bg-green-400
-            text-white font-semibold
-            px-5 py-2 rounded-xl
-            shadow-[0_0_15px_rgba(34,197,94,0.6)]
-            active:scale-95 transition-all
-          "
-        >
-          Go Pro
-        </button>
-      ) : (
-        <span className="text-green-300 font-semibold drop-shadow">
-          ⭐ Pro Member
-        </span>
+          <Link href="/signin" className="text-white/80 hover:text-white underline">
+            Sign In
+          </Link>
+        </>
+      )}
+
+      {user && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-white/90">{user.email}</span>
+
+          {isPro ? (
+            <span className="px-3 py-1 bg-yellow-400 text-black rounded-full text-xs font-bold">
+              PRO
+            </span>
+          ) : (
+            <span className="px-3 py-1 bg-white/20 text-white rounded-full text-xs font-bold">
+              FREE
+            </span>
+          )}
+
+          <button
+            onClick={logout}
+            className="text-white/70 underline hover:text-white cursor-pointer text-sm"
+          >
+            Logout
+          </button>
+        </div>
       )}
     </nav>
   );
