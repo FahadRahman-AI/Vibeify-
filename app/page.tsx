@@ -39,7 +39,6 @@ export default function Home() {
 
   // On mount → generate device ID + load usage counter
   useEffect(() => {
-    // 1. Device ID
     let id = localStorage.getItem("device_id");
     if (!id) {
       id = crypto.randomUUID();
@@ -47,22 +46,21 @@ export default function Home() {
     }
     setDeviceId(id);
 
-    // 2. DAILY USAGE COUNTER
-    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+    // DAILY FREE COUNTER
+    const today = new Date().toISOString().slice(0, 10);
     const storedDate = localStorage.getItem("free_rewrites_date");
     const storedCount = localStorage.getItem("free_rewrites_count");
 
     if (storedDate === today) {
       setFreeCount(Number(storedCount || 0));
     } else {
-      // reset counter
       localStorage.setItem("free_rewrites_date", today);
       localStorage.setItem("free_rewrites_count", "0");
       setFreeCount(0);
     }
   }, []);
 
-  // 🆕 LINK USER ACCOUNT <-> DEVICE ID  
+  // LINK ACCOUNT <-> DEVICE ID
   useEffect(() => {
     if (user?.id && deviceId) {
       fetch("/api/auth/link", {
@@ -75,15 +73,13 @@ export default function Home() {
     }
   }, [user?.id, deviceId]);
 
-  // ---------- REWRITE FUNCTION ----------
+  // ---------- REWRITE ----------
   async function rewriteText() {
     if (!text.trim()) return;
 
-    if (!isPro) {
-      if (freeCount >= FREE_LIMIT) {
-        alert("You've used all 5 free rewrites today. Upgrade to Pro for unlimited access.");
-        return;
-      }
+    if (!isPro && freeCount >= FREE_LIMIT) {
+      alert("You've used all 5 free rewrites today. Upgrade to Pro for unlimited access.");
+      return;
     }
 
     setLoading(true);
@@ -96,14 +92,11 @@ export default function Home() {
 
       const data = await res.json();
 
-      if (data.error) {
-        alert(data.error);
-      }
+      if (data.error) alert(data.error);
 
       if (data.output) {
         setText(data.output);
 
-        // increment usage for free users
         if (!isPro) {
           const newCount = freeCount + 1;
           setFreeCount(newCount);
@@ -121,10 +114,10 @@ export default function Home() {
     setLoading(false);
   }
 
-  // ---------- CHECKOUT ----------
+  // ---------- CHECKOUT (FIXED) ----------
   async function startCheckout() {
     try {
-      const res = await fetch("/checkout", {
+      const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         body: JSON.stringify({ deviceId }),
       });
